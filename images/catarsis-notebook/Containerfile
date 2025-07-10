@@ -1,0 +1,20 @@
+FROM quay.io/jupyter/scipy-notebook:2025-07-07
+# Replace `latest` with an image tag from to ensure reproducible builds:
+# https://hub.docker.com/r/jupyter/minimal-notebook/tags/
+# Inspect the Dockerfile at:
+# https://github.com/jupyter/docker-stacks/tree/HEAD/minimal-notebook/Dockerfile
+
+
+USER root
+
+RUN apt-get update --yes && \
+    apt-get install --yes --no-install-recommends \
+    # For running the unreleased version of ipyaladin
+    nodejs \
+     && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+USER ${NB_UID}
+
+# install additional packages
+RUN pip install --no-cache-dir astropy astroquery ipyaladin pymysql regions
