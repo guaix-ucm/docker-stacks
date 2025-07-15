@@ -1,9 +1,21 @@
-FROM quay.io/jupyter/scipy-notebook:2025-07-07
-# Replace `latest` with an image tag from to ensure reproducible builds:
-# https://hub.docker.com/r/jupyter/minimal-notebook/tags/
-# Inspect the Dockerfile at:
-# https://github.com/jupyter/docker-stacks/tree/HEAD/minimal-notebook/Dockerfile
+ARG BASE_IMAGE="quay.io/jupyter/scipy-notebook:2025-07-07"
 
+FROM ${BASE_IMAGE}
+
+# Args are scoped and removed after FROM
+ARG BASE_IMAGE
+ARG BUILD_DATE="unknown"
+ARG VCS_REF="unknown"
+
+LABEL org.opencontainers.image.title="Catarsis tools in Jupyter lab" \
+      org.opencontainers.image.authors="Francisco Miguel Montenegro-Montes <fmontene@ucm.es>, Sergio Pascual <sergiopr@fis.ucm.es>" \
+      org.opencontainers.image.source="https://github.com/guaix-ucm/docker-stacks" \
+      org.opencontainers.image.description="Catarsis tools in Jupyter lab" \
+      org.opencontainers.image.vendor="GUAIX - Universidad Complutense de Madrid" \
+      org.opencontainers.image.url="https://guaix.ucm.es" \
+      org.opencontainers.image.base.name=${BASE_IMAGE} \
+      org.opencontainers.image.created=${BUILD_DATE} \
+      org.opencontainers.image.revision=${VCS_REF}
 
 USER root
 
@@ -15,6 +27,8 @@ RUN apt-get update --yes && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 USER ${NB_UID}
-
-# install additional packages
-RUN pip install --no-cache-dir astropy astroquery ipyaladin pymysql regions
+COPY --chown=${NB_UID}:${NB_GID} requirements.txt /tmp/
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt && \
+    fix-permissions "${CONDA_DIR}" && \
+    fix-permissions "/home/${NB_USER}"
