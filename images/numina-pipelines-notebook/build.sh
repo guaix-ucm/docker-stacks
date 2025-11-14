@@ -15,6 +15,6 @@ podman build --format docker \
     --build-arg VCS_REF="$VCS_REF" \
     -t "$IMAGE_NAME:latest"  \
     -t "$IMAGE_NAME:$BUILD_DATE_SHORT" \
-    -t "$IMAGE_NAME:pyemir-0.22.1" \
-    -t "$IMAGE_NAME:megaradrp-0.17" \
+    -t "$IMAGE_NAME:pyemir-0.23" \
+    -t "$IMAGE_NAME:megaradrp-0.18" \
     .

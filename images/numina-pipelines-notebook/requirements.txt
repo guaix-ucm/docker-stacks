@@ -1,2 +1,2 @@
- pyemir==0.22.1
- megaradrp==0.17
+ pyemir==0.23
+ megaradrp==0.18
