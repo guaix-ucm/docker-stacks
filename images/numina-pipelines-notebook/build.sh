@@ -5,7 +5,7 @@ BUILD_DATE=$(date -Iseconds)
 BUILD_DATE_SHORT=$(date +%F)
 VCS_REF=$(git rev-parse --short HEAD)
 
-BASE_REG_ID="ghcr.io/guaix-ucm"
+BASE_REG_ID="quay.io/guaix-ucm"
 IMAGE_DESC="numina-pipelines-notebook"
 IMAGE_NAME="$BASE_REG_ID/$IMAGE_DESC"
 
@@ -16,5 +16,5 @@ podman build --format docker \
     -t "$IMAGE_NAME:latest"  \
     -t "$IMAGE_NAME:$BUILD_DATE_SHORT" \
     -t "$IMAGE_NAME:pyemir-0.23" \
-    -t "$IMAGE_NAME:megaradrp-0.18" \
+    -t "$IMAGE_NAME:megaradrp-0.19" \
     .
