@@ -1,0 +1,30 @@
+ARG BASE_IMAGE="quay.io/jupyter/r-notebook:r-4.5.2"
+
+FROM ${BASE_IMAGE}
+
+# Args are scoped and removed after FROM
+ARG BASE_IMAGE
+ARG BUILD_DATE="unknown"
+ARG VCS_REF="unknown"
+
+LABEL org.opencontainers.image.title="RStan in jupyter lab" \
+      org.opencontainers.image.authors="Sergio Pascual <sergiopr@fis.ucm.es>" \
+      org.opencontainers.image.source="https://github.com/guaix-ucm/docker-stacks" \
+      org.opencontainers.image.description="Jupyter lab stack with RStan" \
+      org.opencontainers.image.vendor="GUAIX - Universidad Complutense de Madrid" \
+      org.opencontainers.image.url="https://guaix.ucm.es" \
+      org.opencontainers.image.base.name=${BASE_IMAGE} \
+      org.opencontainers.image.created=${BUILD_DATE} \
+      org.opencontainers.image.revision=${VCS_REF}
+
+# Possible future labels
+# org.opencontainers.image.version="1.0.0" 
+# org.opencontainers.image.documentation="https://github.com/guaix-ucm/docker-stacks/wiki"
+#  org.opencontainers.image.licenses="" \
+
+#RUN echo 'options(repos = c(CRAN = "https://cloud.r-project.org"))' >> /usr/local/lib/R/etc/Rprofile.site 
+RUN R -q -e 'install.packages("rstan", repos = "https://cloud.r-project.org")' \
+    && \
+    mamba clean --all -f -y && \
+    fix-permissions "${CONDA_DIR}" && \
+    fix-permissions "/home/${NB_USER}"
