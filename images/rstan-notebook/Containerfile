@@ -22,8 +22,9 @@ LABEL org.opencontainers.image.title="RStan in jupyter lab" \
 # org.opencontainers.image.documentation="https://github.com/guaix-ucm/docker-stacks/wiki"
 #  org.opencontainers.image.licenses="" \
 
-#RUN echo 'options(repos = c(CRAN = "https://cloud.r-project.org"))' >> /usr/local/lib/R/etc/Rprofile.site 
-RUN R -q -e 'install.packages("rstan", repos = "https://cloud.r-project.org")' \
+# Binary package from conda-forge, much faster than compiling from CRAN
+RUN mamba install --yes \
+    "r-rstan=2.32.7" \
     && \
     mamba clean --all -f -y && \
     fix-permissions "${CONDA_DIR}" && \

@@ -1,4 +1,4 @@
-ARG BASE_IMAGE="quay.io/jupyter/scipy-notebook:2025-07-07"
+ARG BASE_IMAGE="quay.io/jupyter/scipy-notebook:2026-10-12"
 
 FROM ${BASE_IMAGE}
 
@@ -17,16 +17,6 @@ LABEL org.opencontainers.image.title="Catarsis tools in Jupyter lab" \
       org.opencontainers.image.created=${BUILD_DATE} \
       org.opencontainers.image.revision=${VCS_REF}
 
-USER root
-
-RUN apt-get update --yes && \
-    apt-get install --yes --no-install-recommends \
-    # For running the unreleased version of ipyaladin
-    nodejs \
-     && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
-USER ${NB_UID}
 COPY --chown=${NB_UID}:${NB_GID} requirements.txt /tmp/
 RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt && \

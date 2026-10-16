@@ -1,5 +1,5 @@
-astropy 
-astroquery 
-ipyaladin 
-pymysql 
-regions 
+astropy==8.0.2
+astroquery==0.4.11
+ipyaladin==0.8.1
+pymysql==1.2.3
+regions==0.12

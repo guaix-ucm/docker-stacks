@@ -1,0 +1,146 @@
+name: Build container images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "images/**"
+      - ".github/workflows/build-images.yml"
+  pull_request:
+    paths:
+      - "images/**"
+      - ".github/workflows/build-images.yml"
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Image to build (directory name under images/), or 'all'"
+        required: true
+        default: all
+
+env:
+  REGISTRY: quay.io
+  NAMESPACE: guaix-ucm
+
+jobs:
+  # Decide which images to build: only those whose directory changed,
+  # or all of them if the workflow itself changed or on manual dispatch with 'all'
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.list.outputs.images }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: list
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_IMAGE: ${{ github.event.inputs.image }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          all=$(find images -mindepth 2 -maxdepth 2 -name Containerfile -printf '%h\n' | xargs -n1 basename | sort)
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if [ "$INPUT_IMAGE" = "all" ]; then
+              selected="$all"
+            else
+              selected="$INPUT_IMAGE"
+            fi
+          elif [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            # New branch or force push: no usable base, build everything
+            selected="$all"
+          else
+            changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+            if echo "$changed" | grep -q '^.github/workflows/build-images.yml$'; then
+              selected="$all"
+            else
+              selected=$(echo "$changed" | grep '^images/' | cut -d/ -f2 | sort -u \
+                | while read -r d; do [ -f "images/$d/Containerfile" ] && echo "$d"; done)
+            fi
+          fi
+          json=$(printf '%s\n' $selected | jq -R . | jq -sc 'map(select(length > 0))')
+          echo "Images to build: $json"
+          echo "images=$json" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.images != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.changes.outputs.images) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Compute tags and build args
+        id: meta
+        env:
+          IMAGE_DIR: images/${{ matrix.image }}
+          IMAGE_NAME: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ matrix.image }}
+        run: |
+          echo "build_date=$(date -u -Iseconds)" >> "$GITHUB_OUTPUT"
+          echo "vcs_ref=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            echo "$IMAGE_NAME:latest"
+            echo "$IMAGE_NAME:$(date -u +%F)"
+            # Optional extra tags, one per line (e.g. pipeline versions)
+            if [ -f "$IMAGE_DIR/tags" ]; then
+              grep -v '^\s*\(#\|$\)' "$IMAGE_DIR/tags" | sed "s|^\s*|$IMAGE_NAME:|"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Build once and load it in the local daemon to test it
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          context: images/${{ matrix.image }}
+          file: images/${{ matrix.image }}/Containerfile
+          platforms: linux/amd64
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            VCS_REF=${{ steps.meta.outputs.vcs_ref }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Smoke test
+        env:
+          IMAGE_DIR: images/${{ matrix.image }}
+          IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ matrix.image }}:latest
+        run: |
+          docker run --rm "$IMAGE" jupyter lab --version
+          if [ -f "$IMAGE_DIR/smoke-test.sh" ]; then
+            docker run --rm -v "$PWD/$IMAGE_DIR/smoke-test.sh:/tmp/smoke-test.sh:ro" \
+              "$IMAGE" bash /tmp/smoke-test.sh
+          fi
+
+      # Pull requests only check that the image builds and works
+      - name: Log in to Quay.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      # Same inputs as the Build step, so all layers come from the cache
+      - name: Push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v7
+        with:
+          context: images/${{ matrix.image }}
+          file: images/${{ matrix.image }}/Containerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            VCS_REF=${{ steps.meta.outputs.vcs_ref }}
+          cache-from: type=gha,scope=${{ matrix.image }}
